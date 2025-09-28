@@ -1,14 +1,4 @@
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  profileImageURL: string | null;
-  role: 'admin' | 'user';
-  invitedByAdminId: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
+import type { User } from '../context/authContext';
 export interface Task {
   id: number;
   title: string;

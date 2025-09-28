@@ -1,3 +1,5 @@
+import type { User } from '../context/authContext';
+
 // Format date to readable string
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
@@ -37,21 +39,22 @@ export const getStatusColor = (status: string): string => {
 };
 
 // Check if user is admin
-export const isAdmin = (user: any): boolean => {
+export const isAdmin = (user: User | null | undefined): boolean => {
   return user?.role === 'admin';
 };
 
 // Storage helpers
+// IMPORTANT: These use 'auth_token' and 'user' keys consistently.
 export const storage = {
-  getToken: (): string | null => localStorage.getItem('auth_token'),
-  setToken: (token: string): void => localStorage.setItem('auth_token', token),
-  getUser: (): any => {
+  getToken: () => localStorage.getItem('auth_token'),
+  setToken: (token: string) => localStorage.setItem('auth_token', token),
+  getUser: () => {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;
   },
-  setUser: (user: any): void => localStorage.setItem('user', JSON.stringify(user)),
-  clearAuth: (): void => {
+  setUser: (user: User) => localStorage.setItem('user', JSON.stringify(user)),
+  clearAuth: () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
-  },
+  }
 };

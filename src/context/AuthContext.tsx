@@ -1,87 +1,96 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { axiosInstance } from '../utils/axiosInstance';
 import { API_PATHS } from '../utils/apiPath';
 import { storage } from '../utils/helper';
+import { AuthContext, type AuthContextType, type User } from './authContext';
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  profileImageURL: string | null;
-  role: 'admin' | 'user';
-  invitedByAdminId: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, adminInviteToken?: string) => Promise<void>;
-  logout: () => void;
-  isLoading: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Ref to prevent multiple simultaneous operations
+  const operationInProgress = useRef(false);
 
   useEffect(() => {
     const initializeAuth = () => {
-      const savedToken = storage.getToken();
-      const savedUser = storage.getUser();
-
-      if (savedToken && savedUser) {
-        setToken(savedToken);
-        setUser(savedUser);
+      if (operationInProgress.current) return;
+      operationInProgress.current = true;
+      
+      try {
+        // Use consistent storage methods to retrieve data
+        const savedToken = storage.getToken();
+        const savedUser = storage.getUser() as User | null;
+        
+        if (savedToken && savedUser) {
+          setToken(savedToken);
+          setUser(savedUser);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        // Clear potentially corrupted data
+        storage.clearAuth();
+      } finally {
+        setIsLoading(false);
+        operationInProgress.current = false;
       }
-      setIsLoading(false);
     };
 
     initializeAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
+    if (operationInProgress.current) return;
+    operationInProgress.current = true;
+    
     try {
       const response = await axiosInstance.post(API_PATHS.LOGIN, { email, password });
       const { access_token, user: userData } = response.data.data;
-      
+
+      // Atomic update - set all state together
       setUser(userData);
       setToken(access_token);
       storage.setToken(access_token);
       storage.setUser(userData);
-    } catch (error) {
-      throw error;
+    } finally {
+      operationInProgress.current = false;
     }
   };
 
   const register = async (name: string, email: string, password: string, adminInviteToken?: string) => {
+    if (operationInProgress.current) return;
+    operationInProgress.current = true;
+    
     try {
-      const payload = adminInviteToken 
+      const payload = adminInviteToken
         ? { name, email, password, adminInviteToken }
         : { name, email, password };
         
       const response = await axiosInstance.post(API_PATHS.REGISTER, payload);
       const { access_token, user: userData } = response.data.data;
-      
+
+      // Atomic update
       setUser(userData);
       setToken(access_token);
       storage.setToken(access_token);
       storage.setUser(userData);
-    } catch (error) {
-      throw error;
+    } finally {
+      operationInProgress.current = false;
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    storage.clearAuth();
-  };
+  const logout = useCallback(() => {
+    if (operationInProgress.current) return;
+    operationInProgress.current = true;
+    
+    try {
+      setUser(null);
+      setToken(null);
+      storage.clearAuth();
+    } finally {
+      operationInProgress.current = false;
+    }
+  }, []);
 
   const value: AuthContextType = {
     user,
@@ -95,10 +104,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+export { AuthProvider };

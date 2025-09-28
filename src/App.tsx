@@ -1,9 +1,11 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext.tsx';
 import PrivateRoute from './routes/PrivateRoute';
 import Login from './pages/Auth/Login';
 import SignUp from './pages/Auth/SignUp';
+import MainLayout from './components/layout/MainLayout';
+import GenerateToken from './pages/Admin/GenerateToken';
 
 // Admin Pages
 import Dashboard from './pages/Admin/Dashboard';
@@ -27,27 +29,29 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
 
-          {/* Admin Routes */}
+          {/* Protected Routes with Layout */}
           <Route element={<PrivateRoute allowedRoles={['admin']} />}>
-            <Route path="/admin/dashboard" element={<Dashboard />} />
-            <Route path="/admin/tasks" element={<ManageTasks />} />
-            <Route path="/admin/create-task" element={<CreateTask />} />
-            <Route path="/admin/users" element={<ManageUsers />} />
+            <Route element={<MainLayout />}>
+              <Route path="/admin/dashboard" element={<Dashboard />} />
+              <Route path="/admin/tasks" element={<ManageTasks />} />
+              <Route path="/admin/create-task" element={<CreateTask />} />
+              <Route path="/admin/users" element={<ManageUsers />} />
+              <Route path="/admin/generate-token" element={<GenerateToken />} />
+            </Route>
           </Route>
 
-          {/* User Routes */}
           <Route element={<PrivateRoute allowedRoles={['user']} />}>
-            <Route path="/user/dashboard" element={<UserDashboard />} />
-            <Route path="/user/tasks" element={<MyTasks />} />
-            <Route path="/user/tasks-details/:id" element={<ViewTaskDetails />} />
+            <Route element={<MainLayout />}>
+              <Route path="/user/dashboard" element={<UserDashboard />} />
+              <Route path="/user/tasks" element={<MyTasks />} />
+              <Route path="/user/tasks-details/:id" element={<ViewTaskDetails />} />
+            </Route>
           </Route>
 
-          {/* Default redirect */}
           <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
     </AuthProvider>
   );
 }
-
 export default App;

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { storage } from './helper.ts';
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
@@ -7,12 +8,13 @@ export const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// Add token to requests
+// Only add request interceptor for token
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = storage.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -23,15 +25,20 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-// Handle token expiration
-axiosInstance.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+// Export a function to set up response interceptor from AuthProvider
+export const setupResponseInterceptor = (logoutCallback: () => void) => {
+  axiosInstance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.response?.status === 401) {
+        console.warn('Authentication expired. Logging out...');
+        logoutCallback();
+        
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
-  }
-);
+  );
+};
