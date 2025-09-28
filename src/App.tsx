@@ -18,6 +18,7 @@ import UserDashboard from './pages/User/UserDashboard';
 import MyTasks from './pages/User/MyTasks';
 import ViewTaskDetails from './pages/User/ViewTaskDetails';
 
+
 import './App.css';
 
 function App() {
@@ -44,7 +45,9 @@ function App() {
             <Route element={<MainLayout />}>
               <Route path="/user/dashboard" element={<UserDashboard />} />
               <Route path="/user/tasks" element={<MyTasks />} />
+              <Route path="/user/task/:id" element={<ViewTaskDetails />} />
               <Route path="/user/tasks-details/:id" element={<ViewTaskDetails />} />
+              <Route path="/user/create-task" element={<CreateTask />} />
             </Route>
           </Route>
 

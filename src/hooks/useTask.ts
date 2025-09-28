@@ -3,7 +3,6 @@ import type { Task, CreateTaskData, DashboardStats } from '../types';
 import { taskService } from '../services/taskService';
 import { getErrorMessage } from '../utils/errorHandler';
 
-
 export const useTasks = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,6 +33,30 @@ export const useTasks = () => {
     }
   };
 
+  const updateTask = async (id: number, data: Partial<CreateTaskData>): Promise<Task> => {
+    setError(null);
+    try {
+      const updatedTask = await taskService.updateTask(id, data);
+      setTasks(prev => prev.map(t => (t.id === id ? updatedTask : t)));
+      return updatedTask;
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update task'));
+      throw err;
+    }
+  };
+
+  const updateTaskChecklist = async (id: number, todoChecklist: { id?: number; text: string; completed: boolean }[]): Promise<Task> => {
+    setError(null);
+    try {
+      const updatedTask = await taskService.updateTaskChecklist(id, todoChecklist);
+      setTasks(prev => prev.map(t => (t.id === id ? updatedTask : t)));
+      return updatedTask;
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update task checklist'));
+      throw err;
+    }
+  };
+
   useEffect(() => {
     fetchTasks();
   }, []);
@@ -44,6 +67,8 @@ export const useTasks = () => {
     error,
     fetchTasks,
     createTask,
+    updateTask,
+    updateTaskChecklist,
   };
 };
 

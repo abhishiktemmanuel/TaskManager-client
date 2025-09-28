@@ -1,4 +1,5 @@
 import { createContext } from 'react';
+import type { Task } from '../types/index';
 
 export interface User {
   id: number;
@@ -9,6 +10,7 @@ export interface User {
   invitedByAdminId: number | null;
   createdAt: string;
   updatedAt: string;
+  assignedTasks?: Task[];
 }
 
 export interface AuthContextType {

@@ -1,106 +1,102 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { formatDate, getPriorityColor, getStatusColor } from '../../utils/helper';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useTasks } from '../../hooks/useTask';
+import type { Task } from '../../types/index';
+import type { Todo } from '../../types/index';
 
-// Mock data - replace with actual API calls
-const mockTasks = [
-  {
-    id: 1,
-    title: 'Complete project documentation',
-    description: 'Write comprehensive documentation for the new feature',
-    priority: 'High',
-    status: 'In Progress',
-    dueDate: '2024-12-31',
-    progress: 60,
-  },
-  {
-    id: 2,
-    title: 'Fix login page bug',
-    description: 'Resolve the issue with login page validation',
-    priority: 'Medium',
-    status: 'Pending',
-    dueDate: '2024-11-15',
-    progress: 0,
-  },
-  {
-    id: 3,
-    title: 'Design user dashboard',
-    description: 'Create mockups for the new user dashboard',
-    priority: 'Low',
-    status: 'Completed',
-    dueDate: '2024-10-30',
-    progress: 100,
-  },
-];
+const ViewTaskDetails: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const { updateTask, updateTaskChecklist } = useTasks();
+  const [task, setTask] = useState<Task | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [todos, setTodos] = useState<Todo[]>([]);
 
-const MyTasks: React.FC = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    // Fetch single task via taskService directly or extend hook as needed
+    import('../../services/taskService').then(({ taskService }) => {
+      console.log("Rendering ViewTaskDetails", id, task);
+
+      taskService.getTaskById(+id)
+        .then(task => {
+          setTask(task);
+          setProgress(task.progress);
+          setTodos(task.todos);
+        })
+        .catch(() => setError('Failed to load task details'))
+        .finally(() => setLoading(false));
+    });
+  }, [id]);
+
+  if (loading) return <div className="p-8 text-gray-400">Loading...</div>;
+  if (error) return <div className="p-8 text-red-600">{error}</div>;
+  if (!task) return <div className="p-8 text-red-600">Task not found.</div>;
+
+  const handleProgressSave = async () => {
+    try {
+      const updated = await updateTask(task.id, { progress });
+      setTask(updated);
+    } catch {
+      setError('Failed to update progress');
+    }
+  };
+
+  const handleTodoToggle = async (index: number) => {
+    const updatedTodos = todos.map((todo, idx) =>
+      idx === index ? { ...todo, completed: !todo.completed } : todo
+    );
+    try {
+      const updated = await updateTaskChecklist(task.id, updatedTodos);
+      setTask(updated);
+      setTodos(updated.todos);
+      setProgress(updated.progress);
+    } catch {
+      setError('Failed to update todo');
+    }
+  };
+
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
-          <p className="text-gray-600">Manage your assigned tasks</p>
-        </div>
+    <div className="min-h-screen p-8 max-w-3xl mx-auto bg-gray-50">
+      <button onClick={() => navigate(-1)} className="mb-4 text-blue-600 hover:underline">Back</button>
+      <h1 className="text-3xl font-semibold">{task.title}</h1>
+      <p className="my-4">{task.description}</p>
+      <div className="mb-4">
+        <label className="block mb-1 font-medium">Progress: {progress}%</label>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={progress}
+          onChange={e => setProgress(+e.target.value)}
+          className="w-full"
+        />
+        <button onClick={handleProgressSave} className="mt-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Save Progress
+        </button>
       </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Task List</h2>
-        </div>
-        
-        <div className="divide-y divide-gray-200">
-          {mockTasks.map((task) => (
-            <div key={task.id} className="p-6 hover:bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      <Link 
-                        to={`/user/tasks-details/${task.id}`}
-                        className="hover:text-blue-600"
-                      >
-                        {task.title}
-                      </Link>
-                    </h3>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
-                      {task.priority}
-                    </span>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
-                      {task.status}
-                    </span>
-                  </div>
-                  
-                  <p className="text-gray-600 mb-3">{task.description}</p>
-                  
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <span>Due: {formatDate(task.dueDate)}</span>
-                    <span>Progress: {task.progress}%</span>
-                  </div>
-                  
-                  {/* Progress bar */}
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${task.progress}%` }}
-                    />
-                  </div>
-                </div>
-                
-                <div className="ml-4">
-                  <Link
-                    to={`/user/tasks-details/${task.id}`}
-                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    View Details
-                  </Link>
-                </div>
-              </div>
-            </div>
+      <div>
+        <h2 className="font-semibold mb-2">Checklist</h2>
+        <ul>
+          {todos.length === 0 && <li>No checklist items.</li>}
+          {todos.map((todo, i) => (
+            <li key={todo.id} className="flex items-center gap-2 my-1">
+              <input
+                type="checkbox"
+                checked={todo.completed}
+                onChange={() => handleTodoToggle(i)}
+              />
+              <span className={todo.completed ? 'line-through text-gray-400' : ''}>{todo.text}</span>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     </div>
   );
 };
 
-export default MyTasks;
+export default ViewTaskDetails;

@@ -27,6 +27,7 @@ export interface CreateTaskData {
   dueDate: string;
   assignedToId?: number;
   todos?: string[];
+  progress: number;
 }
 
 export interface DashboardStats {
