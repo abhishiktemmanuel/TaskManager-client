@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useDashboard } from '../../hooks/useTask';
+import { useDashboard, useTasks } from '../../hooks/useTask';
 import { useAuth } from '../../hooks/useAuth';
 
 // Define proper TypeScript interfaces for the component props
@@ -12,11 +12,13 @@ interface StatCardProps {
 }
 
 interface TaskCardProps {
+  id: number;
   title: string;
   status: string;
   priority: string;
   dueDate: string;
   progress: number;
+  onClick: () => void;
 }
 
 interface Task {
@@ -26,11 +28,26 @@ interface Task {
   priority: string;
   dueDate: string;
   progress: number;
+  description?: string;
+  createdAt: string;
 }
 
 const UserDashboard: React.FC = () => {
-  const { stats, loading } = useDashboard();
+  const { stats, loading: statsLoading } = useDashboard();
+  const { tasks, loading: tasksLoading } = useTasks();
   const { user } = useAuth();
+  const [recentTasks, setRecentTasks] = useState<Task[]>([]);
+
+  // Filter and sort tasks to get recent ones
+  useEffect(() => {
+    if (tasks && tasks.length > 0) {
+      // Get the 5 most recent tasks (sorted by creation date)
+      const sortedTasks = [...tasks]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 5);
+      setRecentTasks(sortedTasks);
+    }
+  }, [tasks]);
 
   const StatCard: React.FC<StatCardProps> = ({ title, value, color, icon }) => (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -46,10 +63,16 @@ const UserDashboard: React.FC = () => {
     </div>
   );
 
-  const TaskCard: React.FC<TaskCardProps> = ({ title, status, priority, dueDate, progress }) => (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">
+  const TaskCard: React.FC<TaskCardProps> = ({title, status, priority, dueDate, progress, onClick }) => (
+    <div 
+      className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm hover:border-blue-300 transition-all cursor-pointer"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter') onClick(); }}
+    >
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-gray-900">{title}</h3>
+        <h3 className="font-semibold text-gray-900 truncate">{title}</h3>
         <div className="flex space-x-2">
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
             priority === 'High' ? 'bg-red-100 text-red-800' :
@@ -57,6 +80,13 @@ const UserDashboard: React.FC = () => {
             'bg-green-100 text-green-800'
           }`}>
             {priority}
+          </span>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+            status === 'Completed' ? 'bg-green-100 text-green-800' :
+            status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {status}
           </span>
         </div>
       </div>
@@ -66,14 +96,22 @@ const UserDashboard: React.FC = () => {
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2">
         <div
-          className="bg-blue-600 h-2 rounded-full transition-all"
+          className={`h-2 rounded-full transition-all ${
+            progress === 100 ? 'bg-green-500' : 
+            progress >= 50 ? 'bg-blue-500' : 'bg-yellow-500'
+          }`}
           style={{ width: `${progress}%` }}
         />
       </div>
     </div>
   );
 
-  if (loading) {
+  const handleTaskClick = (taskId: number) => {
+    // Navigate to task details page
+    window.location.href = `/user/task/${taskId}`;
+  };
+
+  if (statsLoading || tasksLoading) {
     return (
       <div className="p-8">
         <div className="animate-pulse">
@@ -83,17 +121,14 @@ const UserDashboard: React.FC = () => {
               <div key={i} className="h-32 bg-gray-200 rounded-xl"></div>
             ))}
           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-gray-200 rounded-xl h-64"></div>
+            <div className="bg-gray-200 rounded-xl h-64"></div>
+          </div>
         </div>
       </div>
     );
   }
-
-  // Mock recent tasks - replace with actual data
-  const recentTasks: Task[] = [
-    { id: 1, title: 'Complete project documentation', status: 'In Progress', priority: 'High', dueDate: '2024-12-31', progress: 60 },
-    { id: 2, title: 'Fix login page bug', status: 'Pending', priority: 'Medium', dueDate: '2024-11-15', progress: 0 },
-    { id: 3, title: 'Design user dashboard', status: 'Completed', priority: 'Low', dueDate: '2024-10-30', progress: 100 },
-  ];
 
   return (
     <div className="p-8">
@@ -141,16 +176,31 @@ const UserDashboard: React.FC = () => {
             </Link>
           </div>
           <div className="p-6 space-y-4">
-            {recentTasks.map((task) => (
-              <TaskCard 
-                key={task.id} 
-                title={task.title}
-                status={task.status}
-                priority={task.priority}
-                dueDate={task.dueDate}
-                progress={task.progress}
-              />
-            ))}
+            {recentTasks.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-lg">No tasks yet!</p>
+                <p className="text-sm mt-2">Create your first task to get started.</p>
+                <Link 
+                  to="/user/create-task" 
+                  className="inline-block mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                >
+                  Create Task
+                </Link>
+              </div>
+            ) : (
+              recentTasks.map((task) => (
+                <TaskCard 
+                  key={task.id}
+                  id={task.id}
+                  title={task.title}
+                  status={task.status}
+                  priority={task.priority}
+                  dueDate={task.dueDate}
+                  progress={task.progress}
+                  onClick={() => handleTaskClick(task.id)}
+                />
+              ))
+            )}
           </div>
         </div>
 
@@ -200,6 +250,9 @@ const UserDashboard: React.FC = () => {
                   width: stats?.totalTasks ? `${(stats.completedTasks / stats.totalTasks) * 100}%` : '0%' 
                 }}
               />
+            </div>
+            <div className="text-right mt-2 text-blue-100 text-sm">
+              {stats?.totalTasks ? `${Math.round((stats.completedTasks / stats.totalTasks) * 100)}%` : '0%'} Complete
             </div>
           </div>
         </div>
