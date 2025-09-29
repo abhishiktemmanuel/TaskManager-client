@@ -25,7 +25,6 @@ export const taskService = {
   },
 
   async updateTask(id: number, data: Partial<CreateTaskData>): Promise<Task> {
-    console.log("Outgoing updateTask payload:", data);
     const response = await axiosInstance.put(API_PATHS.TASK_BY_ID(id.toString()), data);
     return response.data.data;
   },

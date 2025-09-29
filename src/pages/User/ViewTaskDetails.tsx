@@ -9,7 +9,7 @@ const ViewTaskDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { updateTask, updateTaskChecklist } = useTasks();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
 
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,6 +22,11 @@ const ViewTaskDetails: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
+
+  // Check if user can delete this task
+  const canDelete = task && user && (
+    isAdmin || task.createdBy?.id === user.id
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -211,7 +216,8 @@ const ViewTaskDetails: React.FC = () => {
             <span className="text-sm font-medium">Back</span>
           </button>
 
-          {isAdmin && (
+          {/* Show delete button if user is admin OR created the task */}
+          {canDelete && (
             <button
               onClick={() => setShowDeleteModal(true)}
               className="flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"

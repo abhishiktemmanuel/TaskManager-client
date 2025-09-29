@@ -92,8 +92,6 @@ const CreateTask: React.FC = () => {
       payload.todos = todos;
     }
 
-    console.log('Creating task with payload:', payload);
-
     try {
       await createTask(payload);
       navigate(isAdmin ? '/admin/tasks' : '/user/tasks');
