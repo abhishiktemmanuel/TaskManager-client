@@ -14,12 +14,19 @@ interface Task {
   title: string;
   description: string;
   priority: 'Low' | 'Medium' | 'High';
-  status: string;
+  status: 'Pending' | 'In Progress' | 'Completed';
   dueDate: string;
   progress: number;
   todos: Todo[];
   createdAt: string;
 }
+
+// Priority order: High first, then Medium, then Low
+const PRIORITY_ORDER: Record<Task['priority'], number> = {
+  High: 0,
+  Medium: 1,
+  Low: 2,
+};
 
 const MyTasks: React.FC = () => {
   const { user } = useAuth();
@@ -33,7 +40,6 @@ const MyTasks: React.FC = () => {
       navigate('/login');
       return;
     }
-
     userService.getUserById(user.id)
       .then(userData => {
         setTasks(userData.assignedTasks || []);
@@ -46,6 +52,13 @@ const MyTasks: React.FC = () => {
     navigate(`/user/task/${taskId}`);
   };
 
+  // Sort tasks by priority & due date (nearest first)
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const priorityDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+    if (priorityDiff !== 0) return priorityDiff;
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+  });
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-10 flex flex-col items-center">
       <header className="max-w-2xl w-full pb-6">
@@ -57,14 +70,13 @@ const MyTasks: React.FC = () => {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mt-6">{error}</div>
       )}
-      {!loading && !error && tasks.length === 0 && (
+      {!loading && !error && sortedTasks.length === 0 && (
         <div className="text-gray-600 mt-8">No tasks assigned yet.</div>
       )}
 
-      {!loading && !error && tasks.length > 0 && (
+      {!loading && !error && sortedTasks.length > 0 && (
         <div className="w-full max-w-2xl space-y-4">
-          {tasks.map(task => (
-            console.log("Rendering task", task),
+          {sortedTasks.map(task => (
             <div
               key={task.id}
               onClick={() => handleTaskClick(task.id)}

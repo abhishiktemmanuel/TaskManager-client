@@ -21,10 +21,19 @@ export const useTasks = () => {
     }
   };
 
-  const createTask = async (taskData: CreateTaskData): Promise<Task> => {
+  const cleanPayload = (payload: Partial<CreateTaskData>): Partial<CreateTaskData> => {
+    const filtered = Object.fromEntries(
+      Object.entries(payload).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    ) as Partial<CreateTaskData>;
+    return filtered;
+  };
+
+
+    const createTask = async (taskData: CreateTaskData): Promise<Task> => {
     setError(null);
     try {
-      const newTask = await taskService.createTask(taskData);
+      const cleanedData = cleanPayload(taskData) as CreateTaskData;
+      const newTask = await taskService.createTask(cleanedData);
       setTasks(prev => [newTask, ...prev]);
       return newTask;
     } catch (err: unknown) {
@@ -36,7 +45,8 @@ export const useTasks = () => {
   const updateTask = async (id: number, data: Partial<CreateTaskData>): Promise<Task> => {
     setError(null);
     try {
-      const updatedTask = await taskService.updateTask(id, data);
+      const cleanedData = cleanPayload(data);
+      const updatedTask = await taskService.updateTask(id, cleanedData);
       setTasks(prev => prev.map(t => (t.id === id ? updatedTask : t)));
       return updatedTask;
     } catch (err: unknown) {
@@ -44,6 +54,7 @@ export const useTasks = () => {
       throw err;
     }
   };
+
 
   const updateTaskChecklist = async (id: number, todoChecklist: { id?: number; text: string; completed: boolean }[]): Promise<Task> => {
     setError(null);

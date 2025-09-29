@@ -2,7 +2,6 @@ import { axiosInstance } from '../utils/axiosInstance';
 import { API_PATHS } from '../utils/apiPath';
 import type { Task, CreateTaskData, DashboardStats } from '../types';
 
-// Define interface for todo checklist items
 interface TodoChecklistItem {
   id?: number;
   text: string;
@@ -26,6 +25,7 @@ export const taskService = {
   },
 
   async updateTask(id: number, data: Partial<CreateTaskData>): Promise<Task> {
+    console.log("Outgoing updateTask payload:", data);
     const response = await axiosInstance.put(API_PATHS.TASK_BY_ID(id.toString()), data);
     return response.data.data;
   },

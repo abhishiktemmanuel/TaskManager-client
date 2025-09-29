@@ -1,84 +1,65 @@
+// src/pages/Admin/CreateTask.tsx (Updated version)
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTasks } from '../../hooks/useTask';
 import { useAuth } from '../../hooks/useAuth';
 import { userService } from '../../services/userService';
 import { getErrorMessage } from '../../utils/errorHandler';
-import Input from '../../components/common/Input';
-import Button from '../../components/common/Button';
-
-const baseInputStyle = 'w-full px-4 py-3 text-base outline-none focus:ring rounded border-gray-200 transition';
-
-const PriorityOptions = {
-  LOW: 'Low',
-  MEDIUM: 'Medium',
-  HIGH: 'High',
-} as const;
-
-type Priority = typeof PriorityOptions[keyof typeof PriorityOptions];
+import { Calendar, User, Flag, Plus, X } from 'lucide-react';
+import type { Priority, Status } from '../../types/enums';
 
 interface UserSummary {
   id: number;
   name: string;
+  email?: string;
 }
 
 const CreateTask: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<Priority>(PriorityOptions.MEDIUM);
+  const [priority, setPriority] = useState<Priority>('Medium');
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState('');
-
-  // Checklist handling
   const [todos, setTodos] = useState<string[]>([]);
-  const [newTodoText, setNewTodoText] = useState('');
-
-  // Team state for admin assignment
+  const [currentTodo, setCurrentTodo] = useState('');
   const [team, setTeam] = useState<UserSummary[]>([]);
-  const [assignedToId, setAssignedToId] = useState<number>();
+  const [assignedToId, setAssignedToId] = useState<number | undefined>();
   const [isFetchingTeam, setIsFetchingTeam] = useState(false);
 
   const { createTask, loading } = useTasks();
-  const { user } = useAuth(); // must include user.role, user.id
+  const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const navigate = useNavigate();
 
-  // Fetch team for admins on mount
+  // Fetch team members on mount (admin only)
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && user) {
       setIsFetchingTeam(true);
       userService.getTeamMembers()
         .then((teamList: UserSummary[]) => {
-          // Include the admin themselves as a possible assignee
           const withSelf = [
-            { id: user.id, name: user.name + ' (Me)' },
+            { id: user.id, name: `${user.name} (Me)`, email: user.email },
             ...(teamList || [])
           ];
           setTeam(withSelf);
           setAssignedToId(user.id);
         })
-        .catch(err => {
-          setError('Failed to fetch team members');
-        })
+        .catch(() => setError('Failed to fetch team members'))
         .finally(() => setIsFetchingTeam(false));
-    } else {
-      setAssignedToId(user?.id);
     }
   }, [isAdmin, user]);
 
-  // Checklist handlers
-  const handleAddTodo = () => {
-    if (newTodoText.trim()) {
-      setTodos([...todos, newTodoText.trim()]);
-      setNewTodoText('');
+  const addTodo = () => {
+    if (currentTodo.trim()) {
+      setTodos([...todos, currentTodo.trim()]);
+      setCurrentTodo('');
     }
   };
 
-  const handleRemoveTodo = (removeIdx: number) => {
-    setTodos(todos.filter((_, idx) => idx !== removeIdx));
+  const removeTodo = (index: number) => {
+    setTodos(todos.filter((_, i) => i !== index));
   };
 
-  // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -87,195 +68,249 @@ const CreateTask: React.FC = () => {
       setError('Please fill in all required fields');
       return;
     }
+
     if (isAdmin && !assignedToId) {
       setError('Please choose an assignee');
       return;
     }
 
+    // Build payload - only include what backend expects
+    const payload: any = {
+      title,
+      description,
+      priority,
+      status: 'Pending' as Status,
+      dueDate, // Keep as YYYY-MM-DD string
+    };
+
+    // Only add optional fields if they have values
+    if (isAdmin && assignedToId) {
+      payload.assignedToId = assignedToId;
+    }
+    
+    if (todos.length > 0) {
+      payload.todos = todos;
+    }
+
+    console.log('Creating task with payload:', payload);
+
     try {
-      await createTask({
-        title,
-        description,
-        priority,
-        dueDate,
-        assignedToId, // included for admins (and users, but users will have their own id)
-        todos,
-      });
-      navigate('/admin/tasks');
+      await createTask(payload);
+      navigate(isAdmin ? '/admin/tasks' : '/user/tasks');
     } catch (err: unknown) {
+      console.error('Create task error:', err);
       setError(getErrorMessage(err, 'Failed to create task'));
     }
   };
 
+  const getPriorityColors = (p: Priority, isSelected: boolean) => {
+    const colors = {
+      Low: isSelected 
+        ? 'bg-green-500 text-white border-green-500' 
+        : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
+      Medium: isSelected 
+        ? 'bg-yellow-500 text-white border-yellow-500' 
+        : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100',
+      High: isSelected 
+        ? 'bg-red-500 text-white border-red-500' 
+        : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100',
+    };
+    return colors[p];
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-10 flex justify-center">
-      <form 
-        onSubmit={handleSubmit} 
-        className="w-full max-w-2xl p-8 space-y-8"
-      >
-        <header className="pb-4">
-          <h1 className="text-3xl font-light text-gray-800 tracking-wide">Create New Task 📝</h1>
-          <p className="text-sm text-gray-500 mt-1">A focused space for capturing task essentials.</p>
-        </header>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-2xl mx-auto">
+
+        {/* Error Message */}
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-            <p>{error}</p>
+          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-400 rounded-r-lg">
+            <p className="text-red-700 text-sm">{error}</p>
           </div>
         )}
 
-        {/* Task title/description */}
-        <section className="space-y-6">
-          <div>
-            <Input
-              label="Title"
-              id="title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Title"
-              className={`text-xl font-medium ${baseInputStyle} border-b-2`}
-              required
-            />
-          </div>
-
-          <div>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="Description"
-              className={`resize-y ${baseInputStyle} rounded-lg border-2 border-dashed`}
-              required
-            />
-          </div>
-        </section>
-
-        <hr className="border-gray-100" />
-
-        {/* Settings: DueDate, Priority, Assignee */}
-        <section className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            {/* Due Date */}
-            <div>
-              <label htmlFor="dueDate" className="block text-xs text-left px-4 font-medium text-gray-400 mb-1">DUE DATE</label>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-6 space-y-6">
+            
+            {/* Title */}
+            <div className="space-y-2">
+              <label className="block text-sm text-left px-4 font-semibold text-gray-900">
+                Task Title *
+              </label>
               <input
-                id="dueDate"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className={`block ${baseInputStyle}`}
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter a clear, concise task title"
                 required
               />
             </div>
-            {/* Priority */}
-            <div>
-              <label className="block text-xs font-medium text-left px-4 pb-4 text-gray-400 mb-1">PRIORITY</label>
-              <div className="flex space-x-2">
-                {Object.entries(PriorityOptions).map(([key, value]) => {
-                  const isActive = priority === value;
-                  const colorMap = {
-                    [PriorityOptions.LOW]: 'text-green-600 bg-green-50 hover:bg-green-100',
-                    [PriorityOptions.MEDIUM]: 'text-yellow-600 bg-yellow-50 hover:bg-yellow-100',
-                    [PriorityOptions.HIGH]: 'text-red-600 bg-red-50 hover:bg-red-100',
-                  };
-                  return (
+
+            {/* Description */}
+            <div className="space-y-2">
+              <label className="block text-sm text-left px-4 font-semibold text-gray-900">
+                Description *
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
+                placeholder="Provide detailed information about what needs to be done..."
+                required
+              />
+            </div>
+
+            {/* Priority and Due Date Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Priority Pill Selector */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">
+                  <Flag className="inline w-4 h-4 mr-1" />
+                  Priority
+                </label>
+                <div className="flex gap-2">
+                  {(['Low', 'Medium', 'High'] as Priority[]).map((p) => (
                     <button
-                      key={key}
+                      key={p}
                       type="button"
-                      onClick={() => setPriority(value)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-full transition duration-200 
-                        ${colorMap[value]} 
-                        ${isActive ? 'ring-2 ring-blue-500 ring-offset-2' : 'opacity-70'}`
-                      }
+                      onClick={() => setPriority(p)}
+                      className={`flex-1 px-4 py-2.5 rounded-full text-sm font-medium border-2 transition-all duration-200 ${getPriorityColors(p, priority === p)}`}
                     >
-                      {value}
+                      {p}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
+              </div>
+
+              {/* Due Date */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">
+                  <Calendar className="inline w-4 h-4 mr-1" />
+                  Due Date *
+                </label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  required
+                />
               </div>
             </div>
-            {/* Assignment dropdown for Admins */}
+
+            {/* Assign To (Admin only) */}
             {isAdmin && (
-              <div>
-                <label htmlFor="assignedToId" className="block text-xs text-left px-4 font-medium text-gray-400 mb-1">ASSIGN TO</label>
-                <select
-                  id="assignedToId"
-                  value={assignedToId}
-                  onChange={e => setAssignedToId(Number(e.target.value))}
-                  className={`block ${baseInputStyle} appearance-none`}
-                  disabled={isFetchingTeam}
-                >
-                  {team.map(user => (
-                    <option key={user.id} value={user.id}>{user.name}</option>
-                  ))}
-                </select>
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-gray-900">
+                  <User className="inline w-4 h-4 mr-1" />
+                  Assign To
+                </label>
+                <div className="relative">
+                  <select
+                    value={assignedToId || ''}
+                    onChange={(e) => setAssignedToId(e.target.value ? parseInt(e.target.value) : undefined)}
+                    className="w-full px-4 py-3 pr-10 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none bg-white cursor-pointer"
+                    disabled={isFetchingTeam}
+                  >
+                    <option value="">Select team member (optional)</option>
+                    {team.map(member => (
+                      <option key={member.id} value={member.id}>
+                        {member.name} {member.email && `• ${member.email}`}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 flex items-center gap-1">
+                  <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                  Leave empty to assign to yourself
+                </p>
               </div>
             )}
-          </div>
-          {/* Checklist Builder */}
-          <div>
-            <label className="block text-xs text-left px-4 font-medium text-gray-400 mb-2">TODO</label>
-            <div className="space-y-2 mb-3 max-h-40 overflow-y-auto pr-2">
-              {todos.map((todo, index) => (
-                <div key={index} className="flex items-center justify-between p-2 bg-gray-50 border-l-4 border-gray-300 rounded-r-md">
-                  <span className="text-sm text-gray-700">{todo}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTodo(index)}
-                    className="text-gray-400 hover:text-red-600 transition text-lg leading-none"
-                    aria-label="Remove sub-task"
-                  >
-                    &times;
-                  </button>
+
+            {/* Todo Items */}
+            <div className="space-y-4">
+              <label className="block text-sm font-semibold text-gray-900">
+                Todo
+              </label>
+              
+              {/* Add Todo Input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={currentTodo}
+                  onChange={(e) => setCurrentTodo(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTodo();
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Add a todo item..."
+                />
+                <button
+                  type="button"
+                  onClick={addTodo}
+                  disabled={!currentTodo.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-1"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add
+                </button>
+              </div>
+
+              {/* Todo List */}
+              {todos.length > 0 && (
+                <div className="space-y-2">
+                  {todos.map((todo, index) => (
+                    <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg group">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                      <span className="flex-1 text-gray-700">{todo}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeTodo(index)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-700 transition-all duration-200"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                value={newTodoText}
-                onChange={e => setNewTodoText(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddTodo();
-                  }
-                }}
-                placeholder="Add a new checklist item..."
-                className="flex-grow p-3 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleAddTodo}
-                className="px-4 py-2.5 bg-gray-700 text-white font-medium rounded-lg hover:bg-gray-800 transition duration-150 shadow-md"
-                disabled={!newTodoText.trim()}
-              >
-                Add
-              </button>
+              )}
             </div>
           </div>
-        </section>
-        <hr className="border-gray-100" />
-        {/* Form actions */}
-        <footer className="flex justify-end space-x-4 pt-4">
-          <button
-            type="button"
-            onClick={() => navigate('/admin/tasks')}
-            className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition duration-150"
-          >
-            Cancel
-          </button>
-          <Button
-            type="submit"
-            loading={loading}
-            className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition duration-150 shadow-lg disabled:bg-blue-300"
-            disabled={loading}
-          >
-            {loading ? 'Creating...' : 'Create Task'}
-          </Button>
-        </footer>
-      </form>
+
+          {/* Action Buttons */}
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+            <button
+              type="button"
+              className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+              onClick={() => navigate(isAdmin ? '/admin/tasks' : '/user/tasks')}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+            >
+              {loading && (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              )}
+              {loading ? 'Creating...' : 'Create Task'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

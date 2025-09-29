@@ -1,10 +1,11 @@
 import type { User } from '../context/authContext';
+import { Priority, Status } from './enums';
 export interface Task {
   id: number;
   title: string;
   description: string;
-  priority: 'Low' | 'Medium' | 'High';
-  status: 'Pending' | 'In Progress' | 'Completed';
+  priority: Priority;
+  status: Status;
   dueDate: string;
   assignedTo: User;
   createdBy: User;
@@ -28,6 +29,7 @@ export interface CreateTaskData {
   assignedToId?: number;
   todos?: string[];
   progress: number;
+  status: 'Pending' | 'In Progress' | 'Completed';
 }
 
 export interface DashboardStats {
